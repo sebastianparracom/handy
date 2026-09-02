@@ -7,7 +7,10 @@ use crate::managers::history::HistoryManager;
 use crate::managers::model::ModelManager;
 use crate::managers::transcription::StreamWorkKind;
 use crate::managers::transcription::TranscriptionManager;
-use crate::settings::{get_settings, AppSettings, OverlayStyle, APPLE_INTELLIGENCE_PROVIDER_ID};
+use crate::settings::{
+    get_settings, parse_post_process_prompt_id, AppSettings, OverlayStyle,
+    APPLE_INTELLIGENCE_PROVIDER_ID,
+};
 use crate::shortcut;
 use crate::tray::{change_tray_icon, TrayIconState};
 use crate::utils::{
@@ -118,7 +121,11 @@ fn should_use_streaming_overlay(style: OverlayStyle, is_streaming: bool) -> bool
     style == OverlayStyle::Live && is_streaming
 }
 
-async fn post_process_transcription(settings: &AppSettings, transcription: &str) -> Option<String> {
+async fn post_process_transcription(
+    settings: &AppSettings,
+    transcription: &str,
+    prompt_template: &str,
+) -> Option<String> {
     if is_blank_transcription(transcription) {
         debug!("Post-processing skipped because the transcription is empty");
         return None;
@@ -146,33 +153,12 @@ async fn post_process_transcription(settings: &AppSettings, transcription: &str)
         return None;
     }
 
-    let selected_prompt_id = match &settings.post_process_selected_prompt_id {
-        Some(id) => id.clone(),
-        None => {
-            debug!("Post-processing skipped because no prompt is selected");
-            return None;
-        }
-    };
-
-    let prompt = match settings
-        .post_process_prompts
-        .iter()
-        .find(|prompt| prompt.id == selected_prompt_id)
-    {
-        Some(prompt) => prompt.prompt.clone(),
-        None => {
-            debug!(
-                "Post-processing skipped because prompt '{}' was not found",
-                selected_prompt_id
-            );
-            return None;
-        }
-    };
-
-    if prompt.trim().is_empty() {
-        debug!("Post-processing skipped because the selected prompt is empty");
+    if prompt_template.trim().is_empty() {
+        debug!("Post-processing skipped because the prompt is empty");
         return None;
     }
+
+    let prompt = prompt_template.to_string();
 
     debug!(
         "Starting LLM post-processing with provider '{}' (model: {})",
@@ -419,10 +405,63 @@ fn resolve_effective_language(app: &AppHandle, settings: &AppSettings) -> String
     }
 }
 
+/// How to obtain the LLM prompt template when post-processing a transcription.
+#[derive(Debug, Clone)]
+pub enum PostProcessPromptSource {
+    /// Resolve the prompt from the shortcut that started the recording
+    /// (`post_process:{prompt_id}`).
+    BindingId(String),
+    /// Use a previously stored prompt body (history re-transcribe).
+    StoredPrompt(String),
+}
+
+/// Resolve the prompt text that should be used for post-processing.
+fn resolve_post_process_prompt(
+    settings: &AppSettings,
+    source: &PostProcessPromptSource,
+) -> Option<String> {
+    match source {
+        PostProcessPromptSource::BindingId(binding_id) => {
+            let prompt_id = match parse_post_process_prompt_id(binding_id) {
+                Some(id) => id,
+                None => {
+                    debug!(
+                        "Post-processing skipped because binding '{}' is not a post-process prompt",
+                        binding_id
+                    );
+                    return None;
+                }
+            };
+            match settings
+                .post_process_prompts
+                .iter()
+                .find(|prompt| prompt.id == prompt_id)
+            {
+                Some(prompt) => Some(prompt.prompt.clone()),
+                None => {
+                    debug!(
+                        "Post-processing skipped because prompt '{}' was not found",
+                        prompt_id
+                    );
+                    None
+                }
+            }
+        }
+        PostProcessPromptSource::StoredPrompt(prompt) => {
+            if prompt.trim().is_empty() {
+                debug!("Post-processing skipped because the stored prompt is empty");
+                None
+            } else {
+                Some(prompt.clone())
+            }
+        }
+    }
+}
+
 pub(crate) async fn process_transcription_output(
     app: &AppHandle,
     transcription: &str,
-    post_process: bool,
+    post_process: Option<PostProcessPromptSource>,
 ) -> ProcessedTranscription {
     let settings = get_settings(app);
     let mut final_text = transcription.to_string();
@@ -439,19 +478,14 @@ pub(crate) async fn process_transcription_output(
         final_text = converted_text;
     }
 
-    if post_process {
-        if let Some(processed_text) = post_process_transcription(&settings, &final_text).await {
-            post_processed_text = Some(processed_text.clone());
-            final_text = processed_text;
-
-            if let Some(prompt_id) = &settings.post_process_selected_prompt_id {
-                if let Some(prompt) = settings
-                    .post_process_prompts
-                    .iter()
-                    .find(|prompt| &prompt.id == prompt_id)
-                {
-                    post_process_prompt = Some(prompt.prompt.clone());
-                }
+    if let Some(source) = post_process {
+        if let Some(prompt_text) = resolve_post_process_prompt(&settings, &source) {
+            if let Some(processed_text) =
+                post_process_transcription(&settings, &final_text, &prompt_text).await
+            {
+                post_processed_text = Some(processed_text.clone());
+                final_text = processed_text;
+                post_process_prompt = Some(prompt_text);
             }
         }
     } else if final_text != transcription {
@@ -649,7 +683,9 @@ impl ShortcutAction for TranscribeAction {
         play_feedback_sound(app, SoundType::Stop);
 
         let binding_id = binding_id.to_string(); // Clone binding_id for the async task
-        let post_process = self.post_process;
+        let post_process = self.post_process.then(|| {
+            PostProcessPromptSource::BindingId(binding_id.clone())
+        });
         let cancel_generation = rm.cancel_generation();
 
         tauri::async_runtime::spawn(async move {
@@ -748,7 +784,7 @@ impl ShortcutAction for TranscribeAction {
                                 transcription
                             );
 
-                            if post_process {
+                            if post_process.is_some() {
                                 if use_streaming_overlay {
                                     tm.emit_stream_working(StreamWorkKind::Polishing);
                                 } else {
@@ -756,7 +792,11 @@ impl ShortcutAction for TranscribeAction {
                                 }
                             }
                             let Some(processed) = complete_unless_cancelled(
-                                process_transcription_output(&ah, &transcription, post_process),
+                                process_transcription_output(
+                                    &ah,
+                                    &transcription,
+                                    post_process.clone(),
+                                ),
                                 || rm.was_cancelled_since(cancel_generation),
                             )
                             .await
@@ -779,7 +819,7 @@ impl ShortcutAction for TranscribeAction {
                                 if let Err(err) = hm.save_entry(
                                     file_name,
                                     transcription,
-                                    post_process,
+                                    post_process.is_some(),
                                     processed.post_processed_text.clone(),
                                     processed.post_process_prompt.clone(),
                                 ) {
@@ -842,7 +882,7 @@ impl ShortcutAction for TranscribeAction {
                                 if let Err(save_err) = hm.save_entry(
                                     file_name,
                                     String::new(),
-                                    post_process,
+                                    post_process.is_some(),
                                     None,
                                     None,
                                 ) {
@@ -916,10 +956,6 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
         }) as Arc<dyn ShortcutAction>,
     );
     map.insert(
-        "transcribe_with_post_process".to_string(),
-        Arc::new(TranscribeAction { post_process: true }) as Arc<dyn ShortcutAction>,
-    );
-    map.insert(
         "cancel".to_string(),
         Arc::new(CancelAction) as Arc<dyn ShortcutAction>,
     );
@@ -929,6 +965,15 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
     );
     map
 });
+
+/// Resolve the action for a binding id. Per-prompt post-process hotkeys use a
+/// dynamic `post_process:{prompt_id}` id that is not present in [`ACTION_MAP`].
+pub fn resolve_action(binding_id: &str) -> Option<Arc<dyn ShortcutAction>> {
+    if parse_post_process_prompt_id(binding_id).is_some() {
+        return Some(Arc::new(TranscribeAction { post_process: true }) as Arc<dyn ShortcutAction>);
+    }
+    ACTION_MAP.get(binding_id).cloned()
+}
 
 #[cfg(test)]
 mod tests {

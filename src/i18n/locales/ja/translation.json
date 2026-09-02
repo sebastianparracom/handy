@@ -195,10 +195,6 @@
           "cancel": {
             "name": "キャンセルのショートカット",
             "description": "現在の録音をキャンセルするためのキーボードショートカット。"
-          },
-          "transcribe_with_post_process": {
-            "name": "後処理のショートカット",
-            "description": "文字起こしに常に AI 後処理を適用するキーボードショートカット。 (任意)"
           }
         },
         "errors": {
@@ -383,9 +379,6 @@
       }
     },
     "postProcessing": {
-      "hotkey": {
-        "title": "ショートカット"
-      },
       "api": {
         "title": "API (OpenAI 互換)",
         "provider": {
@@ -415,24 +408,24 @@
         }
       },
       "prompts": {
-        "title": "プロンプト",
-        "selectedPrompt": {
-          "title": "選択したプロンプト",
-          "description": "文字起こしを改善するテンプレートを選択するか、新しく作成します。プロンプトテキスト内で ${output} を使用して、キャプチャした文字起こしを参照します。"
-        },
-        "noPrompts": "プロンプトがありません",
-        "selectPrompt": "プロンプトを選択",
+        "title": "Prompts",
+        "listDescription": "Create up to {{max}} prompts. Each prompt can have its own hotkey so they all stay active at once.",
+        "maxReached": "You've reached the maximum of {{max}} prompts.",
         "createNew": "新しいプロンプトを作成",
         "promptLabel": "プロンプト名",
         "promptLabelPlaceholder": "プロンプト名を入力",
         "promptInstructions": "プロンプトの指示",
         "promptInstructionsPlaceholder": "文字起こし後に実行する指示を記述します。例: 以下のテキストの文法と明瞭さを改善してください: ${output}",
         "promptTip": "ヒント: <code>${output}</code> を使用して、文字起こしテキストをプロンプトに挿入します。",
+        "hotkey": "Hotkey",
+        "hotkeyHint": "Optional. Leave empty to keep this prompt inactive until you assign a shortcut.",
+        "hotkeyAfterCreate": "After creating the prompt, assign a hotkey on its card so it can be triggered.",
+        "noHotkey": "No hotkey",
+        "clearHotkey": "Clear hotkey",
         "updatePrompt": "プロンプトを更新",
         "deletePrompt": "プロンプトを削除",
         "createPrompt": "プロンプトを作成",
         "cancel": "キャンセル",
-        "selectToEdit": "上からプロンプトを選択して、詳細を表示・編集します。",
         "createFirst": "上の「新しいプロンプトを作成」をクリックして、最初の後処理プロンプトを作成してください。"
       }
     },

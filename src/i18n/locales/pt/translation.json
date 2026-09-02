@@ -175,10 +175,6 @@
           "cancel": {
             "name": "Atalho de Cancelar",
             "description": "O atalho de teclado para cancelar a gravação atual."
-          },
-          "transcribe_with_post_process": {
-            "name": "Tecla de Pós-Processamento",
-            "description": "Opcional: Uma tecla de atalho dedicada que sempre aplica pós-processamento com IA à sua transcrição."
           }
         },
         "errors": {
@@ -383,9 +379,6 @@
       }
     },
     "postProcessing": {
-      "hotkey": {
-        "title": "Tecla de atalho"
-      },
       "api": {
         "title": "API (Compatível com OpenAI)",
         "provider": {
@@ -415,24 +408,24 @@
         }
       },
       "prompts": {
-        "title": "Prompt",
-        "selectedPrompt": {
-          "title": "Prompt Selecionado",
-          "description": "Selecione um modelo para refinar transcrições ou crie um novo. Use ${output} dentro do texto do prompt para referenciar a transcrição capturada."
-        },
-        "noPrompts": "Nenhum prompt disponível",
-        "selectPrompt": "Selecionar um prompt",
+        "title": "Prompts",
+        "listDescription": "Create up to {{max}} prompts. Each prompt can have its own hotkey so they all stay active at once.",
+        "maxReached": "You've reached the maximum of {{max}} prompts.",
         "createNew": "Criar Novo Prompt",
         "promptLabel": "Rótulo do Prompt",
         "promptLabelPlaceholder": "Digite o nome do prompt",
         "promptInstructions": "Instruções do Prompt",
         "promptInstructionsPlaceholder": "Escreva as instruções para executar após a transcrição. Exemplo: Melhore a gramática e clareza do seguinte texto: ${output}",
         "promptTip": "Dica: Use <code>${output}</code> para inserir o texto transcrito no seu prompt.",
+        "hotkey": "Hotkey",
+        "hotkeyHint": "Optional. Leave empty to keep this prompt inactive until you assign a shortcut.",
+        "hotkeyAfterCreate": "After creating the prompt, assign a hotkey on its card so it can be triggered.",
+        "noHotkey": "No hotkey",
+        "clearHotkey": "Clear hotkey",
         "updatePrompt": "Atualizar Prompt",
         "deletePrompt": "Excluir Prompt",
         "createPrompt": "Criar Prompt",
         "cancel": "Cancelar",
-        "selectToEdit": "Selecione um prompt acima para visualizar e editar seus detalhes.",
         "createFirst": "Clique em 'Criar Novo Prompt' acima para criar seu primeiro prompt de pós-processamento."
       }
     },

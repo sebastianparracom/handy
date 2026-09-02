@@ -175,10 +175,6 @@
           "cancel": {
             "name": "Annulleringsgenvej",
             "description": "Tastaturgenvejen til at annullere den aktuelle optagelse."
-          },
-          "transcribe_with_post_process": {
-            "name": "Genvej til efterbehandling",
-            "description": "Valgfrit: En dedikeret genvej, der altid anvender AI-efterbehandling på din transskription."
           }
         },
         "errors": {
@@ -383,9 +379,6 @@
       }
     },
     "postProcessing": {
-      "hotkey": {
-        "title": "Genvejstast"
-      },
       "api": {
         "title": "API (OpenAI-kompatibel)",
         "provider": {
@@ -415,24 +408,24 @@
         }
       },
       "prompts": {
-        "title": "Prompt",
-        "selectedPrompt": {
-          "title": "Valgt prompt",
-          "description": "Vælg en skabelon til at forfine transskriptioner, eller opret en ny. Brug ${output} i promptteksten for at referere til den fangede transskription."
-        },
-        "noPrompts": "Ingen prompts tilgængelige",
-        "selectPrompt": "Vælg en prompt",
+        "title": "Prompts",
+        "listDescription": "Create up to {{max}} prompts. Each prompt can have its own hotkey so they all stay active at once.",
+        "maxReached": "You've reached the maximum of {{max}} prompts.",
         "createNew": "Opret ny prompt",
         "promptLabel": "Promptnavn",
         "promptLabelPlaceholder": "Indtast promptnavn",
         "promptInstructions": "Promptinstruktioner",
         "promptInstructionsPlaceholder": "Skriv de instruktioner, der skal køres efter transskription. Eksempel: Forbedr grammatik og klarhed for følgende tekst: ${output}",
         "promptTip": "Tip: Brug <code>${output}</code> til at indsætte den transskriberede tekst i din prompt.",
+        "hotkey": "Hotkey",
+        "hotkeyHint": "Optional. Leave empty to keep this prompt inactive until you assign a shortcut.",
+        "hotkeyAfterCreate": "After creating the prompt, assign a hotkey on its card so it can be triggered.",
+        "noHotkey": "No hotkey",
+        "clearHotkey": "Clear hotkey",
         "updatePrompt": "Opdater prompt",
         "deletePrompt": "Slet prompt",
         "createPrompt": "Opret prompt",
         "cancel": "Annuller",
-        "selectToEdit": "Vælg en prompt ovenfor for at se og redigere dens detaljer.",
         "createFirst": "Klik på 'Opret ny prompt' ovenfor for at oprette din første efterbehandlingsprompt."
       }
     },

@@ -1,4 +1,3 @@
-use crate::actions::ACTION_MAP;
 use crate::managers::audio::AudioRecordingManager;
 use log::{debug, error, warn};
 use std::sync::mpsc::{self, Sender};
@@ -76,7 +75,7 @@ pub struct TranscriptionCoordinator {
 }
 
 pub fn is_transcribe_binding(id: &str) -> bool {
-    id == "transcribe" || id == "transcribe_with_post_process"
+    id == "transcribe" || id.starts_with(crate::settings::POST_PROCESS_BINDING_PREFIX)
 }
 
 impl TranscriptionCoordinator {
@@ -257,7 +256,7 @@ impl TranscriptionCoordinator {
 }
 
 fn start(app: &AppHandle, stage: &mut Stage, binding_id: &str, hotkey_string: &str) {
-    let Some(action) = ACTION_MAP.get(binding_id) else {
+    let Some(action) = crate::actions::resolve_action(binding_id) else {
         warn!("No action in ACTION_MAP for '{binding_id}'");
         return;
     };
@@ -273,7 +272,7 @@ fn start(app: &AppHandle, stage: &mut Stage, binding_id: &str, hotkey_string: &s
 }
 
 fn stop(app: &AppHandle, stage: &mut Stage, binding_id: &str, hotkey_string: &str) {
-    let Some(action) = ACTION_MAP.get(binding_id) else {
+    let Some(action) = crate::actions::resolve_action(binding_id) else {
         warn!("No action in ACTION_MAP for '{binding_id}'");
         return;
     };
@@ -332,11 +331,19 @@ mod tests {
                 Some("transcribe"),
                 true,
                 true,
-                "transcribe_with_post_process",
+                "post_process:prompt_1",
                 Some("transcribe")
             ),
             PttAction::Passthrough
         );
+    }
+
+    #[test]
+    fn post_process_binding_ids_are_transcribe_bindings() {
+        assert!(is_transcribe_binding("transcribe"));
+        assert!(is_transcribe_binding("post_process:prompt_abc"));
+        assert!(!is_transcribe_binding("cancel"));
+        assert!(!is_transcribe_binding("transcribe_with_post_process"));
     }
 
     #[test]

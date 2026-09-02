@@ -175,10 +175,6 @@
           "cancel": {
             "name": "रद्द सर्टकट",
             "description": "हालको रेकर्डिङ रद्द गर्ने किबोर्ड सर्टकट।"
-          },
-          "transcribe_with_post_process": {
-            "name": "पोस्ट-प्रोसेसिङ हटकी",
-            "description": "वैकल्पिक: तपाईंको ट्रान्सक्रिप्सनमा सधैँ AI पोस्ट-प्रोसेसिङ लागू गर्ने छुट्टै हटकी।"
           }
         },
         "errors": {
@@ -383,9 +379,6 @@
       }
     },
     "postProcessing": {
-      "hotkey": {
-        "title": "हटकी"
-      },
       "api": {
         "title": "API (OpenAI अनुकूल)",
         "provider": {
@@ -415,24 +408,24 @@
         }
       },
       "prompts": {
-        "title": "प्रम्प्ट",
-        "selectedPrompt": {
-          "title": "चयन गरिएको प्रम्प्ट",
-          "description": "ट्रान्सक्रिप्सन परिष्कृत गर्न टेम्प्लेट चयन गर्नुहोस् वा नयाँ बनाउनुहोस्। क्याप्चर गरिएको ट्रान्सक्रिप्ट उल्लेख गर्न प्रम्प्ट टेक्स्टभित्र ${output} प्रयोग गर्नुहोस्।"
-        },
-        "noPrompts": "कुनै प्रम्प्ट उपलब्ध छैन",
-        "selectPrompt": "प्रम्प्ट चयन गर्नुहोस्",
+        "title": "Prompts",
+        "listDescription": "Create up to {{max}} prompts. Each prompt can have its own hotkey so they all stay active at once.",
+        "maxReached": "You've reached the maximum of {{max}} prompts.",
         "createNew": "नयाँ प्रम्प्ट बनाउनुहोस्",
         "promptLabel": "प्रम्प्ट लेबल",
         "promptLabelPlaceholder": "प्रम्प्टको नाम लेख्नुहोस्",
         "promptInstructions": "प्रम्प्ट निर्देशनहरू",
         "promptInstructionsPlaceholder": "ट्रान्सक्रिप्सनपछि चलाउने निर्देशनहरू लेख्नुहोस्। उदाहरण: निम्न टेक्स्टको व्याकरण र स्पष्टता सुधार गर्नुहोस्: ${output}",
         "promptTip": "सुझाव: प्रम्प्टमा ट्रान्सक्राइब गरिएको टेक्स्ट घुसाउन <code>${output}</code> प्रयोग गर्नुहोस्।",
+        "hotkey": "Hotkey",
+        "hotkeyHint": "Optional. Leave empty to keep this prompt inactive until you assign a shortcut.",
+        "hotkeyAfterCreate": "After creating the prompt, assign a hotkey on its card so it can be triggered.",
+        "noHotkey": "No hotkey",
+        "clearHotkey": "Clear hotkey",
         "updatePrompt": "प्रम्प्ट अपडेट गर्नुहोस्",
         "deletePrompt": "प्रम्प्ट मेटाउनुहोस्",
         "createPrompt": "प्रम्प्ट बनाउनुहोस्",
         "cancel": "रद्द गर्नुहोस्",
-        "selectToEdit": "विवरण हेर्न र सम्पादन गर्न माथिबाट प्रम्प्ट चयन गर्नुहोस्।",
         "createFirst": "आफ्नो पहिलो पोस्ट-प्रोसेसिङ प्रम्प्ट बनाउन माथिको 'नयाँ प्रम्प्ट बनाउनुहोस्' क्लिक गर्नुहोस्।"
       }
     },

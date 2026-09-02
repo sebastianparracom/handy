@@ -195,10 +195,6 @@
           "cancel": {
             "name": "Atajo de cancelar",
             "description": "El atajo de teclado para cancelar la grabación actual."
-          },
-          "transcribe_with_post_process": {
-            "name": "Tecla de post procesamiento",
-            "description": "Opcional: Una tecla de acceso rápido dedicada que siempre aplica post procesamiento con IA a tu transcripción."
           }
         },
         "errors": {
@@ -383,9 +379,6 @@
       }
     },
     "postProcessing": {
-      "hotkey": {
-        "title": "Tecla de acceso rápido"
-      },
       "api": {
         "title": "API (compatible con OpenAI)",
         "provider": {
@@ -415,24 +408,24 @@
         }
       },
       "prompts": {
-        "title": "Prompt",
-        "selectedPrompt": {
-          "title": "Prompt seleccionado",
-          "description": "Selecciona una plantilla para refinar las transcripciones o crea una nueva. Usa ${output} dentro del texto del prompt para hacer referencia a la transcripción capturada."
-        },
-        "noPrompts": "No hay prompts disponibles",
-        "selectPrompt": "Seleccionar un prompt",
+        "title": "Prompts",
+        "listDescription": "Crea hasta {{max}} prompts. Cada uno puede tener su propia tecla para que todos queden activos a la vez.",
+        "maxReached": "Has alcanzado el máximo de {{max}} prompts.",
         "createNew": "Crear nuevo prompt",
         "promptLabel": "Etiqueta del prompt",
         "promptLabelPlaceholder": "Ingresa el nombre del prompt",
         "promptInstructions": "Instrucciones del prompt",
         "promptInstructionsPlaceholder": "Escribe las instrucciones para ejecutar después de la transcripción. Ejemplo: Mejora la gramática y claridad del siguiente texto: ${output}",
         "promptTip": "Consejo: Usa <code>${output}</code> para insertar el texto transcrito en tu prompt.",
+        "hotkey": "Tecla de acceso rápido",
+        "hotkeyHint": "Opcional. Déjala vacía para que este prompt no se active hasta que asignes un atajo.",
+        "hotkeyAfterCreate": "Después de crear el prompt, asigna una tecla en su tarjeta para poder activarlo.",
+        "noHotkey": "Sin tecla",
+        "clearHotkey": "Quitar tecla",
         "updatePrompt": "Actualizar prompt",
         "deletePrompt": "Eliminar prompt",
         "createPrompt": "Crear prompt",
         "cancel": "Cancelar",
-        "selectToEdit": "Selecciona un prompt arriba para ver y editar sus detalles.",
         "createFirst": "Haz clic en 'Crear nuevo prompt' arriba para crear tu primer prompt de post procesamiento."
       }
     },

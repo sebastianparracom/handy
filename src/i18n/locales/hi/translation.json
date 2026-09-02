@@ -175,10 +175,6 @@
           "cancel": {
             "name": "रद्द करने का शॉर्टकट",
             "description": "मौजूदा रिकॉर्डिंग रद्द करने के लिए कीबोर्ड शॉर्टकट."
-          },
-          "transcribe_with_post_process": {
-            "name": "पोस्ट-प्रोसेसिंग हॉटकी",
-            "description": "वैकल्पिक: एक अलग हॉटकी जो आपके ट्रांसक्रिप्शन पर हमेशा AI पोस्ट-प्रोसेसिंग लागू करती है."
           }
         },
         "errors": {
@@ -383,9 +379,6 @@
       }
     },
     "postProcessing": {
-      "hotkey": {
-        "title": "हॉटकी"
-      },
       "api": {
         "title": "API (OpenAI संगत)",
         "provider": {
@@ -415,24 +408,24 @@
         }
       },
       "prompts": {
-        "title": "प्रॉम्प्ट",
-        "selectedPrompt": {
-          "title": "चुना गया प्रॉम्प्ट",
-          "description": "ट्रांसक्रिप्शन को बेहतर बनाने के लिए कोई टेम्पलेट चुनें या नया बनाएं. प्रॉम्प्ट टेक्स्ट में कैप्चर किए गए ट्रांसक्रिप्ट का इस्तेमाल करने के लिए ${output} लिखें."
-        },
-        "noPrompts": "कोई प्रॉम्प्ट उपलब्ध नहीं है",
-        "selectPrompt": "कोई प्रॉम्प्ट चुनें",
+        "title": "Prompts",
+        "listDescription": "Create up to {{max}} prompts. Each prompt can have its own hotkey so they all stay active at once.",
+        "maxReached": "You've reached the maximum of {{max}} prompts.",
         "createNew": "नया प्रॉम्प्ट बनाएं",
         "promptLabel": "प्रॉम्प्ट का लेबल",
         "promptLabelPlaceholder": "प्रॉम्प्ट का नाम डालें",
         "promptInstructions": "प्रॉम्प्ट के निर्देश",
         "promptInstructionsPlaceholder": "ट्रांसक्रिप्शन के बाद चलाने के लिए निर्देश लिखें. उदाहरण: इस टेक्स्ट का व्याकरण और स्पष्टता सुधारें: ${output}",
         "promptTip": "सुझाव: अपने प्रॉम्प्ट में ट्रांसक्राइब किया गया टेक्स्ट डालने के लिए <code>${output}</code> का इस्तेमाल करें.",
+        "hotkey": "Hotkey",
+        "hotkeyHint": "Optional. Leave empty to keep this prompt inactive until you assign a shortcut.",
+        "hotkeyAfterCreate": "After creating the prompt, assign a hotkey on its card so it can be triggered.",
+        "noHotkey": "No hotkey",
+        "clearHotkey": "Clear hotkey",
         "updatePrompt": "प्रॉम्प्ट अपडेट करें",
         "deletePrompt": "प्रॉम्प्ट हटाएं",
         "createPrompt": "प्रॉम्प्ट बनाएं",
         "cancel": "रद्द करें",
-        "selectToEdit": "जानकारी देखने और बदलाव करने के लिए, ऊपर कोई प्रॉम्प्ट चुनें.",
         "createFirst": "अपना पहला पोस्ट-प्रोसेसिंग प्रॉम्प्ट बनाने के लिए, ऊपर 'नया प्रॉम्प्ट बनाएं' पर क्लिक करें."
       }
     },

@@ -47,7 +47,16 @@ pub fn setup_signal_handler(app_handle: AppHandle) {
         for sig in signals.forever() {
             let (binding_id, signal_name) = match sig {
                 #[cfg(target_os = "macos")]
-                SIGUSR1 => ("transcribe_with_post_process", "SIGUSR1"),
+                SIGUSR1 => {
+                    let Some(id) = crate::shortcut::first_bound_post_process_binding_id(&app_handle)
+                    else {
+                        debug!("Received SIGUSR1 but no post-process prompt has a hotkey");
+                        continue;
+                    };
+                    debug!("Received SIGUSR1");
+                    send_transcription_input(&app_handle, &id, "SIGUSR1");
+                    continue;
+                }
                 SIGUSR2 => ("transcribe", "SIGUSR2"),
                 _ => continue,
             };

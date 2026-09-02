@@ -637,8 +637,8 @@ pub fn run(cli_args: CliArgs) {
             shortcut::fetch_post_process_models,
             shortcut::add_post_process_prompt,
             shortcut::update_post_process_prompt,
+            shortcut::change_post_process_prompt_binding,
             shortcut::delete_post_process_prompt,
-            shortcut::set_post_process_selected_prompt,
             shortcut::update_custom_words,
             shortcut::suspend_all_bindings,
             shortcut::resume_all_bindings,
@@ -804,7 +804,11 @@ pub fn run(cli_args: CliArgs) {
             if args.iter().any(|a| a == "--toggle-transcription") {
                 signal_handle::send_transcription_input(app, "transcribe", "CLI");
             } else if args.iter().any(|a| a == "--toggle-post-process") {
-                signal_handle::send_transcription_input(app, "transcribe_with_post_process", "CLI");
+                if let Some(id) = shortcut::first_bound_post_process_binding_id(app) {
+                    signal_handle::send_transcription_input(app, &id, "CLI");
+                } else {
+                    log::warn!("--toggle-post-process ignored: no post-process prompt has a hotkey");
+                }
             } else if args.iter().any(|a| a == "--cancel") {
                 crate::utils::cancel_current_operation(app);
             } else {

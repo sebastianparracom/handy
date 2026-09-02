@@ -524,12 +524,20 @@ mod imp {
                 if id == "cancel" && !state.cancel_requested.load(Ordering::SeqCst) {
                     continue;
                 }
-                if id == "transcribe_with_post_process" && !settings.post_process_enabled {
-                    continue;
-                }
 
                 if register_fallback_binding(app, id, binding, &mut next) {
                     immune += 1;
+                }
+            }
+
+            if settings.post_process_enabled {
+                for prompt in &settings.post_process_prompts {
+                    if let Some(binding) = settings::shortcut_binding_for_prompt(prompt) {
+                        let id = binding.id.clone();
+                        if register_fallback_binding(app, &id, &binding, &mut next) {
+                            immune += 1;
+                        }
+                    }
                 }
             }
 

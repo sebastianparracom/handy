@@ -21,9 +21,9 @@ use tauri::{AppHandle, Emitter, Manager};
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 use crate::settings::APPLE_INTELLIGENCE_DEFAULT_MODEL_ID;
 use crate::settings::{
-    self, get_settings, AutoSubmitKey, ClipboardHandling, KeyboardImplementation, LLMPrompt,
-    OverlayPosition, OverlayStyle, PasteMethod, ShortcutBinding, SoundTheme, Theme, TypingTool,
-    APPLE_INTELLIGENCE_PROVIDER_ID,
+    self, get_settings, shortcut_binding_for_prompt, AutoSubmitKey, ClipboardHandling,
+    KeyboardImplementation, LLMPrompt, OverlayPosition, OverlayStyle, PasteMethod, ShortcutBinding,
+    SoundTheme, Theme, TypingTool, APPLE_INTELLIGENCE_PROVIDER_ID, MAX_POST_PROCESS_PROMPTS,
 };
 use crate::tray;
 
@@ -244,6 +244,7 @@ pub fn suspend_all_shortcuts(app: &AppHandle) {
             );
         }
     }
+    unregister_post_process_prompt_shortcuts(app);
 }
 
 /// Re-register every binding from settings after shortcut recording ends.
@@ -255,13 +256,55 @@ pub fn resume_all_shortcuts(app: &AppHandle) {
         if id == "cancel" {
             continue;
         }
-        if id == "transcribe_with_post_process" && !settings.post_process_enabled {
-            continue;
-        }
         if let Err(e) = register_shortcut(app, binding.clone()) {
             debug!("resume_all_shortcuts: could not register '{}': {}", id, e);
         }
     }
+    register_post_process_prompt_shortcuts(app);
+}
+
+/// Register every post-process prompt that has a non-empty hotkey, when the
+/// feature is enabled.
+pub fn register_post_process_prompt_shortcuts(app: &AppHandle) {
+    let settings = get_settings(app);
+    if !settings.post_process_enabled {
+        return;
+    }
+    for prompt in &settings.post_process_prompts {
+        if let Some(binding) = shortcut_binding_for_prompt(prompt) {
+            if let Err(e) = register_shortcut(app, binding) {
+                debug!(
+                    "register_post_process_prompt_shortcuts: could not register '{}': {}",
+                    prompt.id, e
+                );
+            }
+        }
+    }
+}
+
+/// Unregister every post-process prompt hotkey currently stored in settings.
+pub fn unregister_post_process_prompt_shortcuts(app: &AppHandle) {
+    let settings = get_settings(app);
+    for prompt in &settings.post_process_prompts {
+        if let Some(binding) = shortcut_binding_for_prompt(prompt) {
+            if let Err(e) = unregister_shortcut(app, binding) {
+                debug!(
+                    "unregister_post_process_prompt_shortcuts: could not unregister '{}': {}",
+                    prompt.id, e
+                );
+            }
+        }
+    }
+}
+
+/// Binding id of the first prompt that has a hotkey assigned, for CLI/SIGUSR1.
+pub fn first_bound_post_process_binding_id(app: &AppHandle) -> Option<String> {
+    let settings = get_settings(app);
+    settings
+        .post_process_prompts
+        .iter()
+        .find(|p| !p.binding.trim().is_empty())
+        .map(|p| settings::post_process_binding_id(&p.id))
 }
 
 /// Temporarily unregister all bindings while the user is recording a
@@ -429,6 +472,22 @@ fn unregister_all_shortcuts(app: &AppHandle, implementation: KeyboardImplementat
             );
         }
     }
+
+    let settings = settings::get_settings(app);
+    for prompt in &settings.post_process_prompts {
+        if let Some(binding) = shortcut_binding_for_prompt(prompt) {
+            let result = match implementation {
+                KeyboardImplementation::Tauri => tauri_impl::unregister_shortcut(app, binding),
+                KeyboardImplementation::HandyKeys => handy_keys::unregister_shortcut(app, binding),
+            };
+            if let Err(e) = result {
+                warn!(
+                    "Failed to unregister post-process prompt shortcut '{}' during switch: {}",
+                    prompt.id, e
+                );
+            }
+        }
+    }
 }
 
 /// Register all shortcuts for a specific implementation, validating and resetting invalid ones
@@ -443,11 +502,6 @@ fn register_all_shortcuts_for_implementation(
     for (id, default_binding) in &default_bindings {
         // Skip cancel shortcut as it's dynamically registered
         if id == "cancel" {
-            continue;
-        }
-
-        // Skip post-processing shortcut when the feature is disabled
-        if id == "transcribe_with_post_process" && !current_settings.post_process_enabled {
             continue;
         }
 
@@ -485,6 +539,50 @@ fn register_all_shortcuts_for_implementation(
                 "Failed to register shortcut '{}' for {:?}: {}",
                 id, implementation, e
             );
+        }
+    }
+
+    // Register per-prompt post-process hotkeys when the feature is enabled.
+    if current_settings.post_process_enabled {
+        let mut prompts_changed = false;
+        for prompt in &mut current_settings.post_process_prompts {
+            let Some(binding) = shortcut_binding_for_prompt(prompt) else {
+                continue;
+            };
+
+            if let Err(e) =
+                validate_shortcut_for_implementation(&binding.current_binding, implementation)
+            {
+                info!(
+                    "Post-process prompt '{}' hotkey ({}) is invalid for {:?}: {}. Clearing.",
+                    prompt.id, binding.current_binding, implementation, e
+                );
+                prompt.binding.clear();
+                prompts_changed = true;
+                reset_bindings.push(settings::post_process_binding_id(&prompt.id));
+                continue;
+            }
+
+            let result = match implementation {
+                KeyboardImplementation::Tauri => {
+                    tauri_impl::register_shortcut(app, binding.clone())
+                }
+                KeyboardImplementation::HandyKeys => {
+                    handy_keys::register_shortcut(app, binding.clone())
+                }
+            };
+
+            if let Err(e) = result {
+                error!(
+                    "Failed to register post-process prompt shortcut '{}' for {:?}: {}",
+                    prompt.id, implementation, e
+                );
+            }
+        }
+
+        if prompts_changed {
+            settings::write_settings(app, current_settings);
+            return reset_bindings;
         }
     }
 
@@ -985,19 +1083,13 @@ pub fn change_auto_submit_key_setting(app: AppHandle, key: String) -> Result<(),
 pub fn change_post_process_enabled_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
     let mut settings = settings::get_settings(&app);
     settings.post_process_enabled = enabled;
-    settings::write_settings(&app, settings.clone());
+    settings::write_settings(&app, settings);
 
-    // Register or unregister the post-processing shortcut
-    if let Some(binding) = settings
-        .bindings
-        .get("transcribe_with_post_process")
-        .cloned()
-    {
-        if enabled {
-            let _ = register_shortcut(&app, binding);
-        } else {
-            let _ = unregister_shortcut(&app, binding);
-        }
+    // Register or unregister every per-prompt post-processing hotkey
+    if enabled {
+        register_post_process_prompt_shortcuts(&app);
+    } else {
+        unregister_post_process_prompt_shortcuts(&app);
     }
 
     crate::secure_input::reconcile_fallback(&app);
@@ -1104,6 +1196,13 @@ pub fn add_post_process_prompt(
 ) -> Result<LLMPrompt, String> {
     let mut settings = settings::get_settings(&app);
 
+    if settings.post_process_prompts.len() >= MAX_POST_PROCESS_PROMPTS {
+        return Err(format!(
+            "Maximum of {} post-process prompts allowed",
+            MAX_POST_PROCESS_PROMPTS
+        ));
+    }
+
     // Generate unique ID using timestamp and random component
     let id = format!("prompt_{}", chrono::Utc::now().timestamp_millis());
 
@@ -1111,6 +1210,7 @@ pub fn add_post_process_prompt(
         id: id.clone(),
         name,
         prompt,
+        binding: String::new(),
     };
 
     settings.post_process_prompts.push(new_prompt.clone());
@@ -1145,6 +1245,67 @@ pub fn update_post_process_prompt(
 
 #[tauri::command]
 #[specta::specta]
+pub fn change_post_process_prompt_binding(
+    app: AppHandle,
+    prompt_id: String,
+    binding: String,
+) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    let binding = binding.trim().to_string();
+
+    let prompt_index = settings
+        .post_process_prompts
+        .iter()
+        .position(|p| p.id == prompt_id)
+        .ok_or_else(|| format!("Prompt with id '{}' not found", prompt_id))?;
+
+    let previous = settings.post_process_prompts[prompt_index].clone();
+
+    // Unregister the previous hotkey if any
+    if let Some(old_binding) = shortcut_binding_for_prompt(&previous) {
+        let _ = unregister_shortcut(&app, old_binding);
+    }
+
+    if binding.is_empty() {
+        settings.post_process_prompts[prompt_index].binding.clear();
+        settings::write_settings(&app, settings);
+        crate::secure_input::reconcile_fallback(&app);
+        return Ok(());
+    }
+
+    if let Err(e) =
+        validate_shortcut_for_implementation(&binding, settings.keyboard_implementation)
+    {
+        // Restore previous registration if we cleared it
+        if let Some(old_binding) = shortcut_binding_for_prompt(&previous) {
+            let _ = register_shortcut(&app, old_binding);
+        }
+        return Err(e);
+    }
+
+    let mut updated = previous.clone();
+    updated.binding = binding;
+    let synthesized = shortcut_binding_for_prompt(&updated)
+        .expect("non-empty binding always synthesizes a ShortcutBinding");
+
+    if settings.post_process_enabled {
+        if let Err(e) = register_shortcut(&app, synthesized) {
+            // Restore previous registration on failure
+            if let Some(old_binding) = shortcut_binding_for_prompt(&previous) {
+                let _ = register_shortcut(&app, old_binding);
+            }
+            return Err(e);
+        }
+    }
+
+    settings.post_process_prompts[prompt_index].binding = updated.binding;
+    settings::write_settings(&app, settings);
+    crate::secure_input::reconcile_fallback(&app);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn delete_post_process_prompt(app: AppHandle, id: String) -> Result<(), String> {
     let mut settings = settings::get_settings(&app);
 
@@ -1152,6 +1313,12 @@ pub fn delete_post_process_prompt(app: AppHandle, id: String) -> Result<(), Stri
     if settings.post_process_prompts.len() <= 1 {
         return Err("Cannot delete the last prompt".to_string());
     }
+
+    let prompt_to_delete = settings
+        .post_process_prompts
+        .iter()
+        .find(|p| p.id == id)
+        .cloned();
 
     // Find and remove the prompt
     let original_len = settings.post_process_prompts.len();
@@ -1161,13 +1328,14 @@ pub fn delete_post_process_prompt(app: AppHandle, id: String) -> Result<(), Stri
         return Err(format!("Prompt with id '{}' not found", id));
     }
 
-    // If the deleted prompt was selected, select the first one or None
-    if settings.post_process_selected_prompt_id.as_ref() == Some(&id) {
-        settings.post_process_selected_prompt_id =
-            settings.post_process_prompts.first().map(|p| p.id.clone());
+    if let Some(prompt) = prompt_to_delete {
+        if let Some(binding) = shortcut_binding_for_prompt(&prompt) {
+            let _ = unregister_shortcut(&app, binding);
+        }
     }
 
     settings::write_settings(&app, settings);
+    crate::secure_input::reconcile_fallback(&app);
     Ok(())
 }
 
@@ -1214,21 +1382,6 @@ pub async fn fetch_post_process_models(
     }
 
     crate::llm_client::fetch_models(provider, api_key).await
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn set_post_process_selected_prompt(app: AppHandle, id: String) -> Result<(), String> {
-    let mut settings = settings::get_settings(&app);
-
-    // Verify the prompt exists
-    if !settings.post_process_prompts.iter().any(|p| p.id == id) {
-        return Err(format!("Prompt with id '{}' not found", id));
-    }
-
-    settings.post_process_selected_prompt_id = Some(id);
-    settings::write_settings(&app, settings);
-    Ok(())
 }
 
 #[tauri::command]

@@ -7,7 +7,7 @@ use log::warn;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 
-use crate::actions::ACTION_MAP;
+use crate::actions::resolve_action;
 use crate::managers::audio::AudioRecordingManager;
 use crate::settings::get_settings;
 use crate::transcription_coordinator::is_transcribe_binding;
@@ -16,7 +16,7 @@ use crate::TranscriptionCoordinator;
 /// Handle a shortcut event from either implementation.
 ///
 /// This function contains the shared logic for:
-/// - Looking up the action in ACTION_MAP
+/// - Looking up the action via [`resolve_action`]
 /// - Handling the cancel binding (only fires when recording)
 /// - Handling push-to-talk mode (start on press, stop on release)
 /// - Handling toggle mode (toggle state on press only)
@@ -44,9 +44,9 @@ pub fn handle_shortcut_event(
         return;
     }
 
-    let Some(action) = ACTION_MAP.get(binding_id) else {
+    let Some(action) = resolve_action(binding_id) else {
         warn!(
-            "No action defined in ACTION_MAP for shortcut ID '{}'. Shortcut: '{}', Pressed: {}",
+            "No action defined for shortcut ID '{}'. Shortcut: '{}', Pressed: {}",
             binding_id, hotkey_string, is_pressed
         );
         return;

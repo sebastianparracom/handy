@@ -4,12 +4,7 @@ import { RefreshCcw } from "lucide-react";
 import { commands } from "@/bindings";
 
 import { Alert } from "../../ui/Alert";
-import {
-  Dropdown,
-  SettingContainer,
-  SettingsGroup,
-  Textarea,
-} from "@/components/ui";
+import { SettingContainer, SettingsGroup, Textarea } from "@/components/ui";
 import { Button } from "../../ui/Button";
 import { ResetButton } from "../../ui/ResetButton";
 import { Input } from "../../ui/Input";
@@ -19,8 +14,10 @@ import { BaseUrlField } from "../PostProcessingSettingsApi/BaseUrlField";
 import { ApiKeyField } from "../PostProcessingSettingsApi/ApiKeyField";
 import { ModelSelect } from "../PostProcessingSettingsApi/ModelSelect";
 import { usePostProcessProviderState } from "../PostProcessingSettingsApi/usePostProcessProviderState";
-import { ShortcutInput } from "../ShortcutInput";
 import { useSettings } from "../../../hooks/useSettings";
+import { PromptHotkeyInput } from "./PromptHotkeyInput";
+
+const MAX_POST_PROCESS_PROMPTS = 5;
 
 const PostProcessingSettingsApiComponent: React.FC = () => {
   const { t } = useTranslation();
@@ -143,68 +140,65 @@ const PostProcessingSettingsApiComponent: React.FC = () => {
   );
 };
 
+type PromptDraft = {
+  name: string;
+  prompt: string;
+};
+
 const PostProcessingSettingsPromptsComponent: React.FC = () => {
   const { t } = useTranslation();
-  const { getSetting, updateSetting, isUpdating, refreshSettings } =
-    useSettings();
+  const { getSetting, refreshSettings } = useSettings();
   const [isCreating, setIsCreating] = useState(false);
-  const [draftName, setDraftName] = useState("");
-  const [draftText, setDraftText] = useState("");
+  const [createDraft, setCreateDraft] = useState<PromptDraft>({
+    name: "",
+    prompt: "",
+  });
+  const [drafts, setDrafts] = useState<Record<string, PromptDraft>>({});
 
   const prompts = getSetting("post_process_prompts") || [];
-  const selectedPromptId = getSetting("post_process_selected_prompt_id") || "";
-  const selectedPrompt =
-    prompts.find((prompt) => prompt.id === selectedPromptId) || null;
 
   useEffect(() => {
-    if (isCreating) return;
-
-    if (selectedPrompt) {
-      setDraftName(selectedPrompt.name);
-      setDraftText(selectedPrompt.prompt);
-    } else {
-      setDraftName("");
-      setDraftText("");
-    }
-  }, [
-    isCreating,
-    selectedPromptId,
-    selectedPrompt?.name,
-    selectedPrompt?.prompt,
-  ]);
-
-  const handlePromptSelect = (promptId: string | null) => {
-    if (!promptId) return;
-    updateSetting("post_process_selected_prompt_id", promptId);
-    setIsCreating(false);
-  };
+    setDrafts((prev) => {
+      const next: Record<string, PromptDraft> = {};
+      for (const prompt of prompts) {
+        next[prompt.id] = prev[prompt.id] ?? {
+          name: prompt.name,
+          prompt: prompt.prompt,
+        };
+      }
+      return next;
+    });
+  }, [prompts]);
 
   const handleCreatePrompt = async () => {
-    if (!draftName.trim() || !draftText.trim()) return;
+    if (!createDraft.name.trim() || !createDraft.prompt.trim()) return;
 
     try {
       const result = await commands.addPostProcessPrompt(
-        draftName.trim(),
-        draftText.trim(),
+        createDraft.name.trim(),
+        createDraft.prompt.trim(),
       );
       if (result.status === "ok") {
         await refreshSettings();
-        updateSetting("post_process_selected_prompt_id", result.data.id);
         setIsCreating(false);
+        setCreateDraft({ name: "", prompt: "" });
+      } else {
+        console.error("Failed to create prompt:", result.error);
       }
     } catch (error) {
       console.error("Failed to create prompt:", error);
     }
   };
 
-  const handleUpdatePrompt = async () => {
-    if (!selectedPromptId || !draftName.trim() || !draftText.trim()) return;
+  const handleUpdatePrompt = async (promptId: string) => {
+    const draft = drafts[promptId];
+    if (!draft || !draft.name.trim() || !draft.prompt.trim()) return;
 
     try {
       await commands.updatePostProcessPrompt(
-        selectedPromptId,
-        draftName.trim(),
-        draftText.trim(),
+        promptId,
+        draft.name.trim(),
+        draft.prompt.trim(),
       );
       await refreshSettings();
     } catch (error) {
@@ -213,90 +207,140 @@ const PostProcessingSettingsPromptsComponent: React.FC = () => {
   };
 
   const handleDeletePrompt = async (promptId: string) => {
-    if (!promptId) return;
-
     try {
       await commands.deletePostProcessPrompt(promptId);
       await refreshSettings();
-      setIsCreating(false);
     } catch (error) {
       console.error("Failed to delete prompt:", error);
     }
   };
 
-  const handleCancelCreate = () => {
-    setIsCreating(false);
-    if (selectedPrompt) {
-      setDraftName(selectedPrompt.name);
-      setDraftText(selectedPrompt.prompt);
-    } else {
-      setDraftName("");
-      setDraftText("");
-    }
-  };
-
   const handleStartCreate = () => {
     setIsCreating(true);
-    setDraftName("");
-    setDraftText("");
+    setCreateDraft({ name: "", prompt: "" });
   };
 
-  const hasPrompts = prompts.length > 0;
-  const isDirty =
-    !!selectedPrompt &&
-    (draftName.trim() !== selectedPrompt.name ||
-      draftText.trim() !== selectedPrompt.prompt.trim());
+  const handleCancelCreate = () => {
+    setIsCreating(false);
+    setCreateDraft({ name: "", prompt: "" });
+  };
+
+  const atLimit = prompts.length >= MAX_POST_PROCESS_PROMPTS;
 
   return (
-    <SettingContainer
-      title={t("settings.postProcessing.prompts.selectedPrompt.title")}
-      description={t(
-        "settings.postProcessing.prompts.selectedPrompt.description",
-      )}
-      descriptionMode="tooltip"
-      layout="stacked"
-      grouped={true}
-    >
-      <div className="space-y-3">
-        <div className="flex gap-2 min-w-0">
-          <Dropdown
-            selectedValue={selectedPromptId || null}
-            options={prompts.map((p) => ({
-              value: p.id,
-              label: p.name,
-            }))}
-            onSelect={(value) => handlePromptSelect(value)}
-            placeholder={
-              prompts.length === 0
-                ? t("settings.postProcessing.prompts.noPrompts")
-                : t("settings.postProcessing.prompts.selectPrompt")
-            }
-            disabled={
-              isUpdating("post_process_selected_prompt_id") || isCreating
-            }
-            className="flex-1 min-w-0"
-          />
-          <Button
-            onClick={handleStartCreate}
-            variant="primary"
-            size="md"
-            disabled={isCreating}
-            className="shrink-0"
-          >
-            {t("settings.postProcessing.prompts.createNew")}
-          </Button>
-        </div>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm text-mid-gray">
+          {t("settings.postProcessing.prompts.listDescription", {
+            max: MAX_POST_PROCESS_PROMPTS,
+          })}
+        </p>
+        <Button
+          onClick={handleStartCreate}
+          variant="primary"
+          size="md"
+          disabled={isCreating || atLimit}
+          className="shrink-0"
+        >
+          {t("settings.postProcessing.prompts.createNew")}
+        </Button>
+      </div>
 
-        {!isCreating && hasPrompts && selectedPrompt && (
-          <div className="space-y-3">
+      {atLimit && (
+        <p className="text-xs text-mid-gray">
+          {t("settings.postProcessing.prompts.maxReached", {
+            max: MAX_POST_PROCESS_PROMPTS,
+          })}
+        </p>
+      )}
+
+      {isCreating && (
+        <div className="space-y-3 rounded-md border border-mid-gray/20 bg-mid-gray/5 p-3">
+          <div className="space-y-2 flex flex-col">
+            <label className="text-sm font-semibold">
+              {t("settings.postProcessing.prompts.promptLabel")}
+            </label>
+            <Input
+              type="text"
+              value={createDraft.name}
+              onChange={(e) =>
+                setCreateDraft((d) => ({ ...d, name: e.target.value }))
+              }
+              placeholder={t(
+                "settings.postProcessing.prompts.promptLabelPlaceholder",
+              )}
+              variant="compact"
+            />
+          </div>
+
+          <div className="space-y-2 flex flex-col">
+            <label className="text-sm font-semibold">
+              {t("settings.postProcessing.prompts.promptInstructions")}
+            </label>
+            <Textarea
+              value={createDraft.prompt}
+              onChange={(e) =>
+                setCreateDraft((d) => ({ ...d, prompt: e.target.value }))
+              }
+              placeholder={t(
+                "settings.postProcessing.prompts.promptInstructionsPlaceholder",
+              )}
+            />
+            <p className="text-xs text-mid-gray/70">
+              <Trans
+                i18nKey="settings.postProcessing.prompts.promptTip"
+                components={{ code: <code /> }}
+              />
+            </p>
+          </div>
+
+          <p className="text-xs text-mid-gray">
+            {t("settings.postProcessing.prompts.hotkeyAfterCreate")}
+          </p>
+
+          <div className="flex gap-2 pt-1">
+            <Button
+              onClick={handleCreatePrompt}
+              variant="primary"
+              size="md"
+              disabled={!createDraft.name.trim() || !createDraft.prompt.trim()}
+            >
+              {t("settings.postProcessing.prompts.createPrompt")}
+            </Button>
+            <Button onClick={handleCancelCreate} variant="secondary" size="md">
+              {t("settings.postProcessing.prompts.cancel")}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {prompts.map((prompt) => {
+        const draft = drafts[prompt.id] ?? {
+          name: prompt.name,
+          prompt: prompt.prompt,
+        };
+        const isDirty =
+          draft.name.trim() !== prompt.name ||
+          draft.prompt.trim() !== prompt.prompt.trim();
+
+        return (
+          <div
+            key={prompt.id}
+            className="space-y-3 rounded-md border border-mid-gray/20 bg-mid-gray/5 p-3"
+          >
             <div className="space-y-2 flex flex-col">
               <label className="text-sm font-semibold">
                 {t("settings.postProcessing.prompts.promptLabel")}
               </label>
               <Input
                 type="text"
-                value={draftName}
-                onChange={(e) => setDraftName(e.target.value)}
+                value={draft.name}
+                onChange={(e) =>
+                  setDrafts((prev) => ({
+                    ...prev,
+                    [prompt.id]: { ...draft, name: e.target.value },
+                  }))
+                }
                 placeholder={t(
                   "settings.postProcessing.prompts.promptLabelPlaceholder",
                 )}
@@ -306,11 +350,30 @@ const PostProcessingSettingsPromptsComponent: React.FC = () => {
 
             <div className="space-y-2 flex flex-col">
               <label className="text-sm font-semibold">
+                {t("settings.postProcessing.prompts.hotkey")}
+              </label>
+              <PromptHotkeyInput
+                promptId={prompt.id}
+                binding={prompt.binding ?? ""}
+                onChanged={refreshSettings}
+              />
+              <p className="text-xs text-mid-gray/70">
+                {t("settings.postProcessing.prompts.hotkeyHint")}
+              </p>
+            </div>
+
+            <div className="space-y-2 flex flex-col">
+              <label className="text-sm font-semibold">
                 {t("settings.postProcessing.prompts.promptInstructions")}
               </label>
               <Textarea
-                value={draftText}
-                onChange={(e) => setDraftText(e.target.value)}
+                value={draft.prompt}
+                onChange={(e) =>
+                  setDrafts((prev) => ({
+                    ...prev,
+                    [prompt.id]: { ...draft, prompt: e.target.value },
+                  }))
+                }
                 placeholder={t(
                   "settings.postProcessing.prompts.promptInstructionsPlaceholder",
                 )}
@@ -323,94 +386,38 @@ const PostProcessingSettingsPromptsComponent: React.FC = () => {
               </p>
             </div>
 
-            <div className="flex gap-2 pt-2">
+            <div className="flex gap-2 pt-1">
               <Button
-                onClick={handleUpdatePrompt}
+                onClick={() => handleUpdatePrompt(prompt.id)}
                 variant="primary"
                 size="md"
-                disabled={!draftName.trim() || !draftText.trim() || !isDirty}
+                disabled={
+                  !draft.name.trim() || !draft.prompt.trim() || !isDirty
+                }
               >
                 {t("settings.postProcessing.prompts.updatePrompt")}
               </Button>
               <Button
-                onClick={() => handleDeletePrompt(selectedPromptId)}
+                onClick={() => handleDeletePrompt(prompt.id)}
                 variant="secondary"
                 size="md"
-                disabled={!selectedPromptId || prompts.length <= 1}
+                disabled={prompts.length <= 1}
               >
                 {t("settings.postProcessing.prompts.deletePrompt")}
               </Button>
             </div>
           </div>
-        )}
+        );
+      })}
 
-        {!isCreating && !selectedPrompt && (
-          <div className="p-3 bg-mid-gray/5 rounded-md border border-mid-gray/20">
-            <p className="text-sm text-mid-gray">
-              {hasPrompts
-                ? t("settings.postProcessing.prompts.selectToEdit")
-                : t("settings.postProcessing.prompts.createFirst")}
-            </p>
-          </div>
-        )}
-
-        {isCreating && (
-          <div className="space-y-3">
-            <div className="space-y-2 block flex flex-col">
-              <label className="text-sm font-semibold text-text">
-                {t("settings.postProcessing.prompts.promptLabel")}
-              </label>
-              <Input
-                type="text"
-                value={draftName}
-                onChange={(e) => setDraftName(e.target.value)}
-                placeholder={t(
-                  "settings.postProcessing.prompts.promptLabelPlaceholder",
-                )}
-                variant="compact"
-              />
-            </div>
-
-            <div className="space-y-2 flex flex-col">
-              <label className="text-sm font-semibold">
-                {t("settings.postProcessing.prompts.promptInstructions")}
-              </label>
-              <Textarea
-                value={draftText}
-                onChange={(e) => setDraftText(e.target.value)}
-                placeholder={t(
-                  "settings.postProcessing.prompts.promptInstructionsPlaceholder",
-                )}
-              />
-              <p className="text-xs text-mid-gray/70">
-                <Trans
-                  i18nKey="settings.postProcessing.prompts.promptTip"
-                  components={{ code: <code /> }}
-                />
-              </p>
-            </div>
-
-            <div className="flex gap-2 pt-2">
-              <Button
-                onClick={handleCreatePrompt}
-                variant="primary"
-                size="md"
-                disabled={!draftName.trim() || !draftText.trim()}
-              >
-                {t("settings.postProcessing.prompts.createPrompt")}
-              </Button>
-              <Button
-                onClick={handleCancelCreate}
-                variant="secondary"
-                size="md"
-              >
-                {t("settings.postProcessing.prompts.cancel")}
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
-    </SettingContainer>
+      {prompts.length === 0 && !isCreating && (
+        <div className="p-3 bg-mid-gray/5 rounded-md border border-mid-gray/20">
+          <p className="text-sm text-mid-gray">
+            {t("settings.postProcessing.prompts.createFirst")}
+          </p>
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -429,14 +436,6 @@ export const PostProcessingSettings: React.FC = () => {
 
   return (
     <div className="max-w-3xl w-full mx-auto space-y-6">
-      <SettingsGroup title={t("settings.postProcessing.hotkey.title")}>
-        <ShortcutInput
-          shortcutId="transcribe_with_post_process"
-          descriptionMode="tooltip"
-          grouped={true}
-        />
-      </SettingsGroup>
-
       <SettingsGroup title={t("settings.postProcessing.api.title")}>
         <PostProcessingSettingsApi />
       </SettingsGroup>
